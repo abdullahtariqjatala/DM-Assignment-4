@@ -1,0 +1,534 @@
+\documentclass[12pt,a4paper]{article}
+
+% Packages
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{parskip}
+
+% Colors
+\definecolor{headerblue}{RGB}{0,70,127}
+\definecolor{lightgray}{RGB}{245,245,245}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{codegray}{RGB}{128,128,128}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=headerblue,
+    urlcolor=headerblue,
+    citecolor=headerblue
+}
+
+% Section formatting
+\titleformat{\section}{\large\bfseries\color{headerblue}}{}{0em}{\thesection\quad}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{headerblue!80!black}}{}{0em}{\thesubsection\quad}
+
+% Code listing style
+\lstset{
+    backgroundcolor=\color{lightgray},
+    basicstyle=\footnotesize\ttfamily,
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{gray!40},
+    keywordstyle=\color{blue},
+    commentstyle=\color{codegreen},
+    stringstyle=\color{red!70!black},
+    numbers=left,
+    numberstyle=\tiny\color{codegray},
+    numbersep=5pt,
+    language=Python
+}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}DS3002 -- Data Mining}
+\fancyhead[R]{\small\color{gray}Abdullah Tariq | 23i-2091}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ─────────────────────────────────────────────
+\begin{document}
+
+% ── Title Page ────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{headerblue} DS3002 -- Data Mining\\[0.4em]
+\large Assignment 4: Clinical ML Pipeline\\[0.2em]
+\normalsize CardioAI -- Heart Disease Prediction \& Digit Recognition}
+
+\vspace{1.5cm}
+\rule{0.8\textwidth}{1pt}
+
+\vspace{1cm}
+\begin{tabular}{rl}
+\textbf{Name:}    & Abdullah Tariq \\[4pt]
+\textbf{Roll No:} & 23i-2091 \\[4pt]
+\textbf{Course:}  & DS3002 -- Data Mining \\[4pt]
+\textbf{Date:}    & May 2026 \\
+\end{tabular}
+
+\vspace{1cm}
+\rule{0.8\textwidth}{1pt}
+
+\vspace{2cm}
+{\large\itshape
+``Every confusion matrix cell represents a real patient who might be told they are\\
+healthy when they are not. Build models you can explain, run experiments you can\\
+reproduce, and write interpretations a cardiologist could trust.''}
+
+\vfill
+{\small FAST-NUCES, Department of Computer Science}
+\end{titlepage}
+
+% ── Table of Contents ─────────────────────────
+\tableofcontents
+\newpage
+
+% ──────────────────────────────────────────────
+\section{Introduction}
+% ──────────────────────────────────────────────
+
+This report documents the implementation of Assignment 4 for DS3002 Data Mining. The assignment addresses a real-world clinical machine-learning scenario: building, evaluating, and interpreting models for heart-disease prediction using the Cleveland Heart Disease dataset, and extending the work to handwritten digit recognition using the MNIST dataset.
+
+The pipeline covers the following components:
+\begin{enumerate}[leftmargin=2cm]
+    \item \textbf{Data Loading \& Pre-processing} -- cleaning, imputation, binary encoding.
+    \item \textbf{XGBoost Classifier} -- gradient-boosted trees on tabular clinical data.
+    \item \textbf{SHAP Interpretability} -- identifying the most influential clinical features.
+    \item \textbf{t-SNE Visualisation} -- exploring class separability in feature space.
+    \item \textbf{MLP (Neural Network)} -- multi-layer perceptron on tabular data.
+    \item \textbf{CNN on MNIST} -- convolutional network for digit classification.
+    \item \textbf{Interactive Dashboard} -- Streamlit app for local inference.
+\end{enumerate}
+
+% ──────────────────────────────────────────────
+\section{Dataset Description}
+% ──────────────────────────────────────────────
+
+\subsection{Cleveland Heart Disease Dataset}
+
+\begin{table}[H]
+\centering
+\caption{Heart Disease Dataset Overview}
+\begin{tabular}{ll}
+\toprule
+\textbf{Field} & \textbf{Detail} \\
+\midrule
+Source  & UCI Machine Learning Repository \\
+File    & \texttt{processed.cleveland.data} \\
+Size    & 303 rows $\times$ 14 columns (13 features + 1 target) \\
+Task    & Binary classification: heart disease present (1) vs.\ absent (0) \\
+Missing & Encoded as \texttt{?}; imputed with column median \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Feature Descriptions}
+\begin{tabular}{llp{8cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Description} \\
+\midrule
+age       & Numeric        & Age in years \\
+sex       & Binary         & 1 = male, 0 = female \\
+cp        & Categorical    & Chest pain type (0--3) \\
+trestbps  & Numeric        & Resting blood pressure (mmHg) \\
+chol      & Numeric        & Serum cholesterol (mg/dl) \\
+fbs       & Binary         & Fasting blood sugar $>120$ mg/dl \\
+restecg   & Categorical    & Resting ECG results (0--2) \\
+thalach   & Numeric        & Maximum heart rate achieved \\
+exang     & Binary         & Exercise-induced angina \\
+oldpeak   & Numeric        & ST depression (exercise vs.\ rest) \\
+slope     & Categorical    & Slope of peak exercise ST segment \\
+ca        & Numeric        & Number of major vessels (0--3) \\
+thal      & Categorical    & Thalassemia type \\
+target    & Binary         & 0 = no disease, 1 = disease \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{MNIST Digit Dataset}
+
+The MNIST dataset consists of 70,000 greyscale images ($28\times28$ pixels) of handwritten digits (0--9). The full training set (60,000 images) and test set (10,000 images) were used. Images were normalised to $[0,1]$ and reshaped to $(28,28,1)$ for Keras.
+
+% ──────────────────────────────────────────────
+\section{Data Pre-processing}
+% ──────────────────────────────────────────────
+
+The following pre-processing steps were applied to the Cleveland dataset:
+
+\begin{enumerate}
+    \item \textbf{Missing value handling:} The dataset encodes missing values as \texttt{?}. These were replaced with \texttt{NaN} and subsequently imputed using each column's median value, preserving the distribution without introducing bias.
+    \item \textbf{Type conversion:} All columns were cast to \texttt{float64} to ensure consistent numeric computation.
+    \item \textbf{Target binarisation:} The original target encodes severity 0--4. Values $> 0$ were mapped to 1 (disease present), giving a balanced binary classification problem.
+    \item \textbf{Train/Test split:} 80\% training (242 samples), 20\% test (61 samples), stratified to preserve class ratios.
+\end{enumerate}
+
+\begin{lstlisting}[caption={Pre-processing code}]
+df.replace('?', np.nan, inplace=True)
+for col in df.columns:
+    df[col] = pd.to_numeric(df[col])
+df.fillna(df.median(), inplace=True)
+df['target'] = (df['target'] > 0).astype(int)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+\end{lstlisting}
+
+% ──────────────────────────────────────────────
+\section{Part B: Bagging \& Boosting -- XGBoost Classifier}
+% ──────────────────────────────────────────────
+
+\subsection{Model Architecture}
+
+An XGBoost classifier was trained with the following hyper-parameters:
+
+\begin{table}[H]
+\centering
+\caption{XGBoost Hyper-parameters}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators     & 200 \\
+learning\_rate    & 0.05 \\
+max\_depth        & 4 \\
+subsample         & 0.8 \\
+colsample\_bytree & 0.8 \\
+eval\_metric      & logloss \\
+random\_state     & 42 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Evaluation Results}
+
+\begin{table}[H]
+\centering
+\caption{XGBoost Classification Report}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
+\midrule
+0 (No Disease)   & 0.96 & 0.82 & 0.89 & 33 \\
+1 (Disease)      & 0.82 & 0.96 & 0.89 & 28 \\
+\midrule
+Accuracy         & \multicolumn{4}{c}{0.8852} \\
+Macro Avg        & 0.89 & 0.89 & 0.89 & 61 \\
+Weighted Avg     & 0.90 & 0.89 & 0.89 & 61 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{XGBoost Key Metrics}
+\begin{tabular}{ll}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Accuracy & 0.8852 \\
+ROC AUC  & 0.9405 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Confusion Matrix}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\textwidth]{report_images/cell_12_out_1.png}
+\caption{XGBoost Confusion Matrix on Test Set}
+\end{figure}
+
+The XGBoost model correctly classifies the vast majority of patients. With a ROC AUC of 0.94, the model demonstrates strong discriminative power between diseased and healthy patients. The high recall for disease class (0.96) is clinically important -- it means very few sick patients are missed.
+
+% ──────────────────────────────────────────────
+\section{SHAP Model Interpretability}
+% ──────────────────────────────────────────────
+
+SHAP (SHapley Additive exPlanations) values were computed using \texttt{shap.TreeExplainer} on the training set to identify the most influential features in the XGBoost model's decisions.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{report_images/cell_14_out_0.png}
+\caption{SHAP Feature Importance (Bar Plot) for XGBoost}
+\end{figure}
+
+\textbf{Key findings from SHAP:}
+\begin{itemize}
+    \item \textbf{cp} (chest pain type) is the most influential feature. Asymptomatic chest pain strongly elevates disease risk.
+    \item \textbf{thalach} (maximum heart rate): lower values are associated with higher disease probability.
+    \item \textbf{oldpeak} (ST depression): larger values indicate greater ischaemic burden.
+    \item \textbf{ca} (fluoroscopy vessel count): more blocked vessels correlate strongly with disease.
+    \item \textbf{thal} (thalassemia type): reversible defects are a known cardiac risk indicator.
+\end{itemize}
+
+These findings are consistent with established cardiology literature -- chest pain type, maximum heart rate, and ST depression are well-known predictors of coronary artery disease.
+
+% ──────────────────────────────────────────────
+\section{t-SNE Visualisation}
+% ──────────────────────────────────────────────
+
+t-SNE (t-distributed Stochastic Neighbour Embedding) was applied to the feature space to visualise class separability in 2D.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\textwidth]{report_images/cell_16_out_1.png}
+\caption{t-SNE 2D Projection of Cleveland Heart Disease Feature Space}
+\end{figure}
+
+The t-SNE plot reveals moderate class separation: diseased patients (class 1) and healthy patients (class 0) form somewhat distinct clusters, but with overlap. This explains why no model achieves perfect accuracy -- the feature space is not linearly separable and there is genuine ambiguity in borderline cases.
+
+% ──────────────────────────────────────────────
+\section{Part C: ANN / MLP on Tabular Data}
+% ──────────────────────────────────────────────
+
+\subsection{Architecture}
+
+A Multi-Layer Perceptron was built using TensorFlow/Keras with the following architecture:
+
+\begin{table}[H]
+\centering
+\caption{MLP Architecture}
+\begin{tabular}{llll}
+\toprule
+\textbf{Layer} & \textbf{Type} & \textbf{Units} & \textbf{Notes} \\
+\midrule
+1 & Dense   & 64  & Activation: ReLU \\
+2 & Dropout & --  & Rate: 0.3 \\
+3 & Dense   & 32  & Activation: ReLU \\
+4 & Dropout & --  & Rate: 0.3 \\
+5 & Dense   & 1   & Activation: Sigmoid (output) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Total parameters:} 3,009 (11.75 KB)
+
+\textbf{Training configuration:}
+\begin{itemize}
+    \item Optimiser: Adam
+    \item Loss: Binary Cross-Entropy
+    \item Epochs: 50, Batch size: 32
+    \item Validation split: 20\%
+\end{itemize}
+
+\subsection{Evaluation Results}
+
+\begin{table}[H]
+\centering
+\caption{MLP Classification Report}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
+\midrule
+0 (No Disease) & 0.66 & 0.76 & 0.70 & 33 \\
+1 (Disease)    & 0.65 & 0.54 & 0.59 & 28 \\
+\midrule
+Accuracy       & \multicolumn{4}{c}{0.6557} \\
+Macro Avg      & 0.66 & 0.65 & 0.65 & 61 \\
+Weighted Avg   & 0.66 & 0.66 & 0.65 & 61 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{MLP Key Metrics}
+\begin{tabular}{ll}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Accuracy & 0.6557 \\
+ROC AUC  & 0.7684 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{MLP Confusion Matrix}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\textwidth]{report_images/cell_23_out_1.png}
+\caption{MLP Confusion Matrix on Test Set}
+\end{figure}
+
+% ──────────────────────────────────────────────
+\section{Model Comparison: XGBoost vs.\ MLP}
+% ──────────────────────────────────────────────
+
+\begin{table}[H]
+\centering
+\caption{Model Performance Comparison}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{XGBoost} & \textbf{MLP} \\
+\midrule
+Accuracy & \textbf{0.8852} & 0.6557 \\
+ROC AUC  & \textbf{0.9405} & 0.7684 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Analysis:} XGBoost significantly outperforms the MLP on this tabular clinical dataset. Several factors explain this gap:
+
+\begin{enumerate}
+    \item \textbf{Dataset size:} With only 303 samples, the dataset is too small for deep networks to learn robust representations. XGBoost handles small tabular datasets well due to its inductive biases (tree splits on individual features).
+    \item \textbf{Feature engineering:} Gradient-boosted trees automatically capture non-linear interactions without requiring explicit feature crosses.
+    \item \textbf{Regularisation:} The MLP's dropout may be insufficient at this scale; XGBoost uses subsampling and shrinkage which are better calibrated for small data.
+    \item \textbf{Optimisation landscape:} Neural networks require careful tuning of learning rate, batch size, and epochs; with 50 epochs the MLP may not have fully converged.
+\end{enumerate}
+
+% ──────────────────────────────────────────────
+\section{Part D: CNN on MNIST Digit Images}
+% ──────────────────────────────────────────────
+
+\subsection{Data Preparation}
+
+\begin{itemize}
+    \item Pixel values normalised to $[0, 1]$ by dividing by 255.
+    \item Images reshaped to $(28, 28, 1)$ for Keras convolutional input.
+    \item Full 60,000 training and 10,000 test images used.
+    \item Labels one-hot encoded for categorical cross-entropy.
+\end{itemize}
+
+\subsection{CNN Architecture}
+
+\begin{table}[H]
+\centering
+\caption{CNN Architecture for MNIST}
+\begin{tabular}{llll}
+\toprule
+\textbf{Layer} & \textbf{Type} & \textbf{Output Shape} & \textbf{Params} \\
+\midrule
+1 & Conv2D(32, 3$\times$3, ReLU)  & (26, 26, 32) & 320 \\
+2 & MaxPooling2D(2$\times$2)       & (13, 13, 32) & 0 \\
+3 & Conv2D(64, 3$\times$3, ReLU)  & (11, 11, 64) & 18,496 \\
+4 & MaxPooling2D(2$\times$2)       & (5, 5, 64)   & 0 \\
+5 & Flatten                        & 1600         & 0 \\
+6 & Dense(128, ReLU)               & 128          & 204,928 \\
+7 & Dropout(0.5)                   & 128          & 0 \\
+8 & Dense(10, Softmax)             & 10           & 1,290 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Total Parameters}} & \textbf{225,034} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training Configuration}
+
+\begin{itemize}
+    \item Optimiser: Adam (lr = 0.001)
+    \item Loss: Categorical Cross-Entropy
+    \item Epochs: 10, Batch size: 128
+    \item Validation split: 20\%
+\end{itemize}
+
+\subsection{Results}
+
+\begin{table}[H]
+\centering
+\caption{CNN Test Results on MNIST}
+\begin{tabular}{ll}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Test Accuracy & \textbf{0.9915} (99.15\%) \\
+Test Loss     & 0.0280 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The CNN achieves 99.15\% accuracy on the MNIST test set in just 10 epochs, demonstrating the power of convolutional architectures for image classification. The convolutional layers learn hierarchical spatial features (edges, curves, loops) that are perfectly suited to handwritten digit recognition.
+
+% ──────────────────────────────────────────────
+\section{Part E: Interactive Dashboard (Streamlit)}
+% ──────────────────────────────────────────────
+
+A local Streamlit web application (\texttt{app.py}) was designed to serve as an interactive decision-support tool. The app provides two modules:
+
+\subsection{Heart Disease Prediction Module}
+\begin{itemize}
+    \item 13 labelled input fields with valid-range hints (e.g., Age: 1--120, thalach: 60--220).
+    \item Pre-populated with a real test patient for instant demonstration.
+    \item \textbf{Results panel:} colour-coded risk label (green = No Disease, red = Disease Present), confidence score as percentage, top-3 SHAP feature bar chart, and a plain-English nurse-facing explanation.
+\end{itemize}
+
+\subsection{Digit Recognition Module}
+\begin{itemize}
+    \item File uploader for a PNG/JPG digit image.
+    \item CNN inference with predicted digit and confidence percentage.
+\end{itemize}
+
+\subsection{Running the App}
+\begin{lstlisting}[language=bash, caption={Launch the Streamlit app}]
+pip install -r requirements.txt
+streamlit run app.py
+\end{lstlisting}
+
+\textbf{Required dependencies (\texttt{requirements.txt}):}
+\texttt{pandas, numpy, scikit-learn, xgboost, shap, tensorflow, matplotlib, seaborn, streamlit, Pillow, python-docx}
+
+% ──────────────────────────────────────────────
+\section{Summary \& Conclusions}
+% ──────────────────────────────────────────────
+
+\begin{table}[H]
+\centering
+\caption{Final Grading Summary}
+\begin{tabular}{lc}
+\toprule
+\textbf{Component} & \textbf{Marks (Allocated)} \\
+\midrule
+Pre-processing \& Data Setup              & 12 \\
+A -- Unsupervised Learning                & 20 \\
+B -- Bagging \& Boosting (XGBoost)        & 22 \\
+C -- ANN / MLP on Tabular Data            & 20 \\
+D -- CNN on MNIST                         & 16 \\
+E -- Local Front-End Dashboard            & 10 \\
+GitHub Integration (Bonus)                & up to +5 \\
+\midrule
+\textbf{TOTAL}                            & \textbf{100 (+5 bonus)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Key Takeaways}
+
+\begin{enumerate}
+    \item \textbf{XGBoost} is the strongest model for this small tabular dataset (accuracy: 88.5\%, ROC AUC: 0.94). Its tree-based structure naturally handles non-linear feature interactions without extensive tuning.
+    \item \textbf{SHAP} explanations confirm clinically valid predictors -- chest pain type, maximum heart rate, and ST depression align with established cardiology research.
+    \item \textbf{t-SNE} shows partial class overlap in feature space, explaining the theoretical ceiling on classifier performance.
+    \item \textbf{MLP} underperforms on this dataset size (accuracy: 65.6\%) but would benefit from more data or aggressive regularisation.
+    \item \textbf{CNN on MNIST} achieves near-perfect accuracy (99.15\%) in 10 epochs, showcasing convolutional networks' superiority for spatial/image tasks.
+    \item The \textbf{Streamlit dashboard} bridges model outputs and clinical users, providing interpretable, actionable predictions suitable for non-technical stakeholders.
+\end{enumerate}
+
+% ──────────────────────────────────────────────
+\section*{References}
+% ──────────────────────────────────────────────
+
+\begin{enumerate}
+    \item Detrano, R. et al.\ (1989). International application of a new probability algorithm for the diagnosis of coronary artery disease. \textit{American Journal of Cardiology}, 64(5), 304--310.
+    \item Breiman, L. (2001). Random Forests. \textit{Machine Learning}, 45(1), 5--32.
+    \item Chen, T. \& Guestrin, C. (2016). XGBoost: A Scalable Tree Boosting System. \textit{KDD '16}.
+    \item Lundberg, S.M. \& Lee, S.I. (2017). A Unified Approach to Interpreting Model Predictions. \textit{NeurIPS}.
+    \item LeCun, Y. et al.\ (1998). Gradient-Based Learning Applied to Document Recognition. \textit{Proceedings of the IEEE}, 86(11).
+    \item van der Maaten, L. \& Hinton, G. (2008). Visualizing Data using t-SNE. \textit{JMLR}, 9, 2579--2605.
+\end{enumerate}
+
+\end{document}
